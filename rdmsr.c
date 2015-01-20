@@ -25,7 +25,8 @@
 #include <getopt.h>
 #include <inttypes.h>
 #include <sys/types.h>
-#include <dirent.h>
+#include <sys/processor.h>
+#include <sys/procset.h>
 #include <ctype.h>
 
 #include "version.h"
@@ -94,25 +95,14 @@ void usage(void)
 
 void rdmsr_on_cpu(uint32_t reg, int cpu);
 
-/* filter out ".", "..", "microcode" in /dev/cpu */
-int dir_filter(const struct dirent *dirp) {
-	if (isdigit(dirp->d_name[0]))
-		return 1;
-	else
-		return 0;
-}
-
 void rdmsr_on_all_cpus(uint32_t reg)
 {
-	struct dirent **namelist;
-	int dir_entries;
+	int i;
+	int cpus = sysconf(_SC_NPROCESSORS_ONLN);
 
-	dir_entries = scandir("/dev/cpu", &namelist, dir_filter, 0);
-	while (dir_entries--) {
-		rdmsr_on_cpu(reg, atoi(namelist[dir_entries]->d_name));
-		free(namelist[dir_entries]);
+	for(i = 0; i < cpus; i++) {
+		rdmsr_on_cpu(reg, i);
 	}
-	free(namelist);
 }
 
 unsigned int highbit = 63, lowbit = 0;
@@ -212,7 +202,7 @@ void rdmsr_on_cpu(uint32_t reg, int cpu)
 	char msr_file_name[64];
 	unsigned int bits;
 
-	sprintf(msr_file_name, "/dev/cpu/%d/msr", cpu);
+	sprintf(msr_file_name, "/dev/cpu/self/msr");
 	fd = open(msr_file_name, O_RDONLY);
 	if (fd < 0) {
 		if (errno == ENXIO) {
@@ -228,6 +218,7 @@ void rdmsr_on_cpu(uint32_t reg, int cpu)
 		}
 	}
 
+	processor_bind(P_LWPID, P_MYID, cpu, NULL);
 	if (pread(fd, &data, sizeof data, reg) != sizeof data) {
 		if (errno == EIO) {
 			fprintf(stderr, "rdmsr: CPU %d cannot read "

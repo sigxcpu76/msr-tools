@@ -26,6 +26,10 @@
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
+#include <sys/types.h>
+#include <sys/processor.h>
+#include <sys/procset.h>
+
 
 struct cpuid {
 	uint32_t eax, ebx, ecx, edx;
@@ -41,7 +45,8 @@ static int cpuid(int cpu, uint32_t leaf, uint32_t subleaf, struct cpuid *data)
 		char devstr[64];
 		if (fd >= 0)
 			close(fd);
-		snprintf(devstr, sizeof devstr, "/dev/cpu/%d/cpuid", cpu);
+		snprintf(devstr, sizeof devstr, "/dev/cpu/self/cpuid");
+		processor_bind(P_LWPID, P_MYID, cpu, NULL);
 		fd = open(devstr, O_RDONLY);
 		if (fd < 0) {
 			if (errno == ENXIO) {

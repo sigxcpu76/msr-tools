@@ -25,7 +25,8 @@
 #include <getopt.h>
 #include <inttypes.h>
 #include <sys/types.h>
-#include <dirent.h>
+#include <sys/processor.h>
+#include <sys/procset.h>
 #include <ctype.h>
 
 #include "version.h"
@@ -54,27 +55,14 @@ void usage(void)
 
 void wrmsr_on_cpu(uint32_t reg, int cpu, int valcnt, char *regvals[]);
 
-/* filter out ".", "..", "microcode" in /dev/cpu */
-int dir_filter(const struct dirent *dirp)
-{
-	if (isdigit(dirp->d_name[0]))
-		return 1;
-	else
-		return 0;
-}
-
 void wrmsr_on_all_cpus(uint32_t reg, int valcnt, char *regvals[])
 {
-	struct dirent **namelist;
-	int dir_entries;
+	int i;
+	int cpus = sysconf(_SC_NPROCESSORS_ONLN);
 
-	dir_entries = scandir("/dev/cpu", &namelist, dir_filter, 0);
-	while (dir_entries--) {
-		wrmsr_on_cpu(reg, atoi(namelist[dir_entries]->d_name),
-				valcnt, regvals);
-		free(namelist[dir_entries]);
+	for(i = 0; i < cpus; i++) {
+		wrmsr_on_cpu(reg, i, valcnt, regvals);
 	}
-	free(namelist);
 }
 
 int main(int argc, char *argv[])
@@ -137,7 +125,7 @@ void wrmsr_on_cpu(uint32_t reg, int cpu, int valcnt, char *regvals[])
 	int fd;
 	char msr_file_name[64];
 
-	sprintf(msr_file_name, "/dev/cpu/%d/msr", cpu);
+	sprintf(msr_file_name, "/dev/cpu/self/msr");
 	fd = open(msr_file_name, O_WRONLY);
 	if (fd < 0) {
 		if (errno == ENXIO) {
@@ -155,6 +143,7 @@ void wrmsr_on_cpu(uint32_t reg, int cpu, int valcnt, char *regvals[])
 
 	while (valcnt--) {
 		data = strtoull(*regvals++, NULL, 0);
+		processor_bind(P_LWPID, P_MYID, cpu, NULL);
 		if (pwrite(fd, &data, sizeof data, reg) != sizeof data) {
 			if (errno == EIO) {
 				fprintf(stderr,
