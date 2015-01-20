@@ -15,12 +15,12 @@
 #
 
 CC       = gcc -Wall
-CFLAGS   = -g -O2 -fomit-frame-pointer -D_GNU_SOURCE -D_FILE_OFFSET_BITS=64
+CFLAGS   = -g -m64 -O2 -fomit-frame-pointer -D_GNU_SOURCE -D_FILE_OFFSET_BITS=64
 LDFLAGS  = 
 
 BIN	= wrmsr rdmsr cpuid
 
-sbindir = /usr/sbin
+sbindir = /opt/local/sbin
 
 all: $(BIN)
 
@@ -31,7 +31,10 @@ distclean: clean
 	rm -f *~ \#*
 
 install: all
-	install -m 755 $(BIN) $(sbindir)
+	#install -m 755 $(BIN) $(sbindir)
+	chmod 755 $(BIN)
+	cp $(BIN) $(sbindir)
+
 
 .o:
 	$(CC) $(LDFLAGS) -o $@ $<
